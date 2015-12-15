@@ -12,6 +12,7 @@ this file and include it in basic-server.js so that it actually works.
 
 **************************************************************/
 var _ = require('../node_modules/underscore/underscore.js');
+var fs = require('fs');
 var headers = {'Content-Type': 'application/json'}; //to be used for all responses
 var getRoomName = function(url) {
   var urlPrefix = '/classes/';
@@ -21,7 +22,11 @@ var getRoomName = function(url) {
     return undefined;
   }
 }
-var messagesData = [];
+var messagesFile = "messages.json";
+var messagesData = JSON.parse(fs.readFileSync(messagesFile));
+
+//read messagesData from local file, if file exists
+
 
 // handle OPTIONS request
 exports.options = function(request, response) {
@@ -34,9 +39,8 @@ exports.options = function(request, response) {
 exports.getMessages = function(request, response) {
   console.log("Serving request type " + request.method + " for url " + request.url);
 
-  var roomName = getRoomName(request.url);
-
   //filter messages by room name
+  var roomName = getRoomName(request.url);
   var filteredData = _.filter(messagesData, function(message){
     return (message.roomname === roomName);
   });
@@ -48,8 +52,6 @@ exports.getMessages = function(request, response) {
 // handle POST request to "/classes/*"
 exports.postMessage = function(request, response) {
   console.log("Serving request type " + request.method + " for url " + request.url);
-
-  var roomName = getRoomName(request.url);
 
   //process request to save it to our messages
   request.on('data', function(data){
@@ -69,9 +71,10 @@ exports.postMessage = function(request, response) {
                         updatedAt: dateString,
                         objectId: messagesData.length,
                         opponents: { "__type":"Relation", "className":"Player" },
-                        roomname: roomName });
-    messagesData.unshift(message);
-    
+                        roomname: getRoomName(request.url) });
+    messagesData.unshift(message); //add to messagesData
+    fs.writeFileSync(messagesFile, JSON.stringify(messagesData));//add to local file
+
     response.writeHead(201,headers);
     response.end(JSON.stringify({ createdAt: dateString, objectId: message.objectId }));
   });
