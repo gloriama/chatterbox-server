@@ -12,28 +12,16 @@ this file and include it in basic-server.js so that it actually works.
 
 **************************************************************/
 var _ = require('../node_modules/underscore/underscore.js');
+var headers = {'Content-Type': 'application/json'}; //to be used for all responses
+var getRoomName = function(url) {
+  var urlPrefix = '/classes/';
+  if (url.substring(0, urlPrefix.length) === urlPrefix) {
+    return url.substring(urlPrefix.length); //return everything after the prefix
+  } else {
+    return undefined;
+  }
+}
 var messagesData = [];
-var messagesURL = '/classes/';
-
-// These headers will allow Cross-Origin Resource Sharing (CORS).
-// This code allows this server to talk to websites that
-// are on different domains, for instance, your chat client.
-//
-// Your chat client is running from a url like file://your/chat/client/index.html,
-// which is considered a different domain.
-//
-// Another way to get around this restriction is to serve you chat
-// client from this domain by setting up static file serving.
-var defaultCorsHeaders = {
-  "access-control-allow-origin": "*",
-  "access-control-allow-methods": "GET, POST, PUT, DELETE, OPTIONS",
-  "access-control-allow-headers": "content-type, accept, x-parse-application-id, x-parse-rest-api-key",
-  "access-control-max-age": 10 // Seconds.
-};
-
-var headers = defaultCorsHeaders; //headers that will be used on all responses
-headers['Content-Type'] = 'application/json';
-
 
 // handle OPTIONS request
 exports.options = function(request, response) {
@@ -42,11 +30,11 @@ exports.options = function(request, response) {
   response.end();
 }
 
-// handle message GET and POST request
+// handle GET request to "/classes/*"
 exports.getMessages = function(request, response) {
   console.log("Serving request type " + request.method + " for url " + request.url);
 
-  var roomName = request.url.substring(messagesURL.length);
+  var roomName = getRoomName(request.url);
 
   //filter messages by room name
   var filteredData = _.filter(messagesData, function(message){
@@ -57,14 +45,14 @@ exports.getMessages = function(request, response) {
   response.end(JSON.stringify({results:filteredData}));
 }
 
-// handle POST request
+// handle POST request to "/classes/*"
 exports.postMessage = function(request, response) {
   console.log("Serving request type " + request.method + " for url " + request.url);
 
-  var roomName = request.url.substring(messagesURL.length);
+  var roomName = getRoomName(request.url);
 
+  //process request to save it to our messages
   request.on('data', function(data){
-    //process request to save it to our messages:
     var message = JSON.parse(data);
     //want to transform data from request into an object of this form:
     // {
@@ -82,17 +70,9 @@ exports.postMessage = function(request, response) {
                         objectId: messagesData.length,
                         opponents: { "__type":"Relation", "className":"Player" },
                         roomname: roomName });
-    //add to beginning of messagesData
     messagesData.unshift(message);
     
     response.writeHead(201,headers);
     response.end(JSON.stringify({ createdAt: dateString, objectId: message.objectId }));
   });
-}
-
-// handle any other request. might not need this with express
-exports.fileNotFound = function(request, response) {
-  console.log("Serving request type " + request.method + " for url " + request.url);
-  response.writeHead(404, headers);
-  response.end();
 }
