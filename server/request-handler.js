@@ -73,7 +73,12 @@ exports.postMessage = function(request, response) {
                         opponents: { "__type":"Relation", "className":"Player" },
                         roomname: getRoomName(request.url) });
     messagesData.unshift(message); //add to messagesData
-    fs.writeFileSync(messagesFile, JSON.stringify(messagesData));//add to local file
+    fs.writeFile(messagesFile, JSON.stringify(messagesData), function(err) {
+      if (err) {
+        throw err;
+      }
+      console.log("message saved to messages.json");
+    });//add to local file asynchronously
 
     response.writeHead(201,headers);
     response.end(JSON.stringify({ createdAt: dateString, objectId: message.objectId }));
