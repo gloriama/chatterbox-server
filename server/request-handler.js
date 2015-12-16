@@ -11,8 +11,10 @@ this file and include it in basic-server.js so that it actually works.
 *Hint* Check out the node module documentation at http://nodejs.org/api/modules.html.
 
 **************************************************************/
-var _ = require('../node_modules/underscore/underscore.js');
+
+var cluster = require('cluster');
 var fs = require('fs');
+var _ = require('../node_modules/underscore/underscore.js');
 var headers = {'Content-Type': 'application/json'}; //to be used for all responses
 var getRoomName = function(url) {
   var urlPrefix = '/classes/';
@@ -22,22 +24,24 @@ var getRoomName = function(url) {
     return undefined;
   }
 }
+
 var messagesFile = "messages.json";
-var messagesData = JSON.parse(fs.readFileSync(messagesFile));
+var messagesData = [];
 
-//read messagesData from local file, if file exists
-
+exports.setMessagesData = function(dataFromMaster) {
+  messagesData = dataFromMaster;
+}
 
 // handle OPTIONS request
 exports.options = function(request, response) {
-  console.log("Serving request type " + request.method + " for url " + request.url);
+  console.log("Worker " + process.pid + ": Serving request type " + request.method + " for url " + request.url);
   response.writeHead(200, headers);
   response.end();
 }
 
 // handle GET request to "/classes/*"
 exports.getMessages = function(request, response) {
-  console.log("Serving request type " + request.method + " for url " + request.url);
+  console.log("Worker " + process.pid + ": Serving request type " + request.method + " for url " + request.url);
 
   //filter messages by room name
   var roomName = getRoomName(request.url);
@@ -51,7 +55,7 @@ exports.getMessages = function(request, response) {
 
 // handle POST request to "/classes/*"
 exports.postMessage = function(request, response) {
-  console.log("Serving request type " + request.method + " for url " + request.url);
+  console.log("Worker " + process.pid + ": Serving request type " + request.method + " for url " + request.url);
 
   //process request to save it to our messages
   request.on('data', function(data){
@@ -72,13 +76,8 @@ exports.postMessage = function(request, response) {
                         objectId: messagesData.length,
                         opponents: { "__type":"Relation", "className":"Player" },
                         roomname: getRoomName(request.url) });
-    messagesData.unshift(message); //add to messagesData
-    fs.writeFile(messagesFile, JSON.stringify(messagesData), function(err) {
-      if (err) {
-        throw err;
-      }
-      console.log("message saved to messages.json");
-    });//add to local file asynchronously
+    
+    process.send(message);
 
     response.writeHead(201,headers);
     response.end(JSON.stringify({ createdAt: dateString, objectId: message.objectId }));
